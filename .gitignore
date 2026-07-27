@@ -1,0 +1,10 @@
+# Downloaded paintings and runtime state (pool/current/seen). All regenerable
+# by fetch_painting.py, and the entries embed absolute paths for this machine.
+media/
+
+.venv/
+__pycache__/
+*.pyc
+
+# Sidecars from an interrupted atomic write
+*.part
