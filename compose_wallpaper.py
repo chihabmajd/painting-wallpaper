@@ -1,14 +1,4 @@
-"""Pre-compose the final wallpaper image: the painting centered on a black
-canvas sized to the screen, positioned within the panel-free area, so Plasma
-just displays it 1:1 at login with no further scaling, cropping, or
-letterbox-color guessing.
-
-Qt's QScreen.availableGeometry() does NOT account for the panel on this
-Wayland/KDE session (it silently returns the full screen rect, identical to
-geometry()) — there's no standard wlr-layer-shell "work area" query Qt can
-rely on here. So we ask Plasma's own scripting API for the real panel
-geometry instead, which is authoritative.
-"""
+"""Compose the painting onto a screen-sized black canvas, clear of the panels."""
 import json
 import os
 import subprocess
@@ -20,8 +10,10 @@ from PySide6.QtGui import QGuiApplication
 
 import store
 
-VERTICAL_NUDGE_MM = 1  # nudge the painting up slightly within its safe area
+VERTICAL_NUDGE_MM = 1
 
+# QScreen.availableGeometry() misses the panel under Wayland/KDE, so panel
+# geometry is queried from Plasma's own scripting API instead.
 PANEL_QUERY_SCRIPT = """
 var result = [];
 var p = panels();
@@ -92,12 +84,10 @@ def compose(raw_path: Path, object_id: int) -> Path:
 
     offset_x = area_x + (area_w - painting.width) // 2
     offset_y = area_y + (area_h - painting.height) // 2 - nudge_px
-    offset_y = max(area_y, offset_y)  # never push it above its safe area
+    offset_y = max(area_y, offset_y)
     canvas.paste(painting, (offset_x, offset_y))
 
-    # Written via a sidecar for the same reason as the download itself (see
-    # fetch_painting.write_image_atomically): this is the file the login path
-    # hands straight to Plasma, and a truncated one shows up as a black desktop.
+    # Atomic write, as in fetch_painting: a truncated file shows a black desktop.
     out_path = store.MEDIA_DIR / f"{object_id}_wallpaper.jpg"
     tmp_path = out_path.with_name(out_path.name + ".part")
     with tmp_path.open("wb") as fh:

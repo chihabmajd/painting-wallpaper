@@ -1,4 +1,4 @@
-"""Small, modern, frameless popup with painting info. Stays until closed by hand."""
+"""Frameless popup showing the current painting's info; stays open until closed by hand."""
 import sys
 
 from PySide6.QtCore import Qt, QPropertyAnimation, QEasingCurve, QPoint
@@ -45,11 +45,8 @@ class PaintingPopup(QWidget):
 
         self._build_ui()
 
-        # Qt under-reports wrapped QLabel heights (sizeHint/heightForWidth)
-        # until the widget has actually been shown and its stylesheet fonts
-        # polished — measuring before that silently truncates long
-        # descriptions. So: show off-screen first, flush the event loop so a
-        # real layout pass happens, THEN measure/position/reveal.
+        # Qt under-reports wrapped QLabel heights until the widget is shown and
+# polished, so it is measured off-screen after a real layout pass.
         self.move(-10000, -10000)
         self.show()
         QApplication.processEvents()
@@ -83,7 +80,6 @@ class PaintingPopup(QWidget):
         card_layout.setContentsMargins(0, 0, 0, 0)
         card_layout.setSpacing(0)
 
-        # slim header bar with just the close button
         header = QWidget()
         header.setStyleSheet(f"background-color: {CARD_BG};")
         header_layout = QHBoxLayout(header)
@@ -109,7 +105,6 @@ class PaintingPopup(QWidget):
         header_layout.addWidget(close_btn)
         card_layout.addWidget(header)
 
-        # text body
         body = QWidget()
         body_layout = QVBoxLayout(body)
         body_layout.setContentsMargins(BODY_MARGIN, 4, BODY_MARGIN, 20)
@@ -168,9 +163,8 @@ class PaintingPopup(QWidget):
         outer.addWidget(card)
 
     def _position_bottom_right(self):
-        # Qt's availableGeometry() doesn't detect the panel on this
-        # Wayland/KDE session (see compose_wallpaper.py) — query Plasma
-        # directly instead so the popup doesn't sit under the panel.
+        # availableGeometry() misses the panel under Wayland/KDE; Plasma is queried
+# directly, as in compose_wallpaper.py.
         full = QApplication.primaryScreen().geometry()
         area_x, area_y, area_w, area_h = compose_wallpaper.safe_area(full.width(), full.height())
         x = area_x + area_w - self.width() - 20
@@ -178,8 +172,7 @@ class PaintingPopup(QWidget):
         self._target_pos = QPoint(x, y)
 
     def _slide_in(self):
-        # Wayland doesn't support animating whole-window opacity for this
-        # window type, so we slide up from below instead of fading.
+        # Wayland cannot animate whole-window opacity here, so it slides instead.
         start = QPoint(self._target_pos.x(), self._target_pos.y() + 40)
         self.move(start)
         self._anim = QPropertyAnimation(self, b"pos")
@@ -199,7 +192,6 @@ class PaintingPopup(QWidget):
         self._anim.finished.connect(self.close)
         self._anim.start()
 
-    # allow dragging the card by clicking anywhere on it
     def mousePressEvent(self, event):
         if event.button() == Qt.LeftButton:
             self._drag_pos = event.globalPosition().toPoint() - self.pos()
@@ -219,7 +211,7 @@ def main():
         sys.exit(1)
 
     app = QApplication(sys.argv)
-    popup = PaintingPopup(info)  # shows itself once sized correctly
+    popup = PaintingPopup(info)
     sys.exit(app.exec())
 
 

@@ -1,24 +1,14 @@
-"""On-disk state shared by the fetch, wallpaper, and popup steps.
-
-Three files live in media/metwallpapers/:
-  pool.json     paintings already downloaded and composed, waiting to be shown
-  current.json  the painting currently on screen (what the popup describes)
-  seen_ids.json every Met object id ever considered, so we don't repeat
-
-Kept dependency-free (stdlib only) so the login path can import it without
-paying for requests/PIL.
-"""
+"""On-disk state shared by the fetch, wallpaper, and popup steps."""
 import json
 from pathlib import Path
 
+# Stdlib-only so the login path can import this without pulling in requests/PIL.
 MEDIA_DIR = Path(__file__).parent / "media" / "metwallpapers"
 POOL_FILE = MEDIA_DIR / "pool.json"
 CURRENT_FILE = MEDIA_DIR / "current.json"
 SEEN_FILE = MEDIA_DIR / "seen_ids.json"
 
-# How many paintings to keep downloaded ahead of time. This is what lets every
-# login show a new painting instantly without waiting on the network, and what
-# keeps things working through a few days offline.
+# Kept downloaded ahead of time so every login shows instantly and a few offline days still work.
 POOL_SIZE = 3
 
 

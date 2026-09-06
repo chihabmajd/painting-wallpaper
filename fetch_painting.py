@@ -1,10 +1,4 @@
-"""Keep the pool of ready-to-show paintings topped up.
-
-Runs in the background after login and once a day on a timer — never on the
-login path itself. Each pooled entry is fully downloaded and composed to screen
-size ahead of time, so showing it later costs nothing. If the network is down,
-whatever is already pooled keeps the next few logins working.
-"""
+"""Top up the pool of pre-composed paintings."""
 import os
 import random
 import sys
@@ -24,21 +18,13 @@ MET_OBJECT = "https://collectionapi.metmuseum.org/public/collection/v1/objects/{
 WIKIDATA_ENTITY = "https://www.wikidata.org/wiki/Special:EntityData/{}.json"
 WIKI_SUMMARY = "https://en.wikipedia.org/api/rest_v1/page/summary/{}"
 
-HEADERS = {"User-Agent": "painting-wallpaper/1.0 (personal desktop script)"}
+HEADERS = {"User-Agent": "painting-wallpaper/1.0 (+https://github.com/chihabmajd/painting-wallpaper)"}
 
 JPEG_MAGIC = b"\xff\xd8\xff"
 
 
 def write_image_atomically(path: Path, data: bytes) -> None:
-    """Write an image so that it is either complete on disk or not there at all.
-
-    Nothing downstream re-validates a pooled image beyond a cheap header check,
-    and a half-written file is indistinguishable from a good one in pool.json,
-    so a torn write poisons the pool until someone deletes the file by hand.
-    Writing to a sidecar and renaming means a crash mid-download leaves a
-    stray .part, never a truncated .jpg; the fsync is what makes that hold
-    across an unclean shutdown rather than just across a process crash.
-    """
+    """Write via a sidecar and fsync, so a crash cannot leave a truncated JPEG."""
     if not data.startswith(JPEG_MAGIC):
         raise RuntimeError(f"downloaded data is not a JPEG ({len(data)} bytes)")
 
@@ -114,10 +100,8 @@ def pick_painting(max_attempts: int = 20) -> dict:
         seen.add(object_id)
         store.save_seen(seen)
 
-        # "isHighlight=true&q=painting" is a free-text search, not a strict
-        # category filter — it also returns furniture, sculpture, etc. that
-        # merely mention "painting" somewhere in their record. objectName is
-        # the reliable field for "this is actually a painting".
+        # The Met's search is free text, not a category filter; objectName confirms
+# the object really is a painting.
         if obj.get("objectName") != "Painting":
             continue
 
