@@ -32,10 +32,13 @@ python -m venv .venv && ./.venv/bin/pip install -r requirements.txt
 ./login.sh        # applies the first painting
 ```
 
-The Met Collection API needs no key. To run it automatically, point a systemd user
-service at `login.sh` and `popup.sh`, and a timer at `fetch.sh`. `popup.sh` has to be its
-own long-lived unit rather than backgrounded from `login.sh`, otherwise systemd's cgroup
-cleanup kills it as soon as `login.sh` exits.
+The Met Collection API needs no key.
+
+Running it automatically is left to you: no unit files are shipped. What is needed is a
+service running `login.sh` at session start, a second one running `popup.sh`, and a timer
+firing `fetch.sh` daily. One constraint is worth knowing before writing them: `popup.sh`
+must be its own long-lived unit rather than backgrounded from `login.sh`, otherwise
+systemd's cgroup cleanup kills it as soon as `login.sh` exits.
 
 ## Limitations
 
