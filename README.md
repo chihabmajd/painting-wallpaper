@@ -4,6 +4,10 @@ Sets the KDE Plasma wallpaper to a painting from the Metropolitan Museum collect
 a popup showing what it is. Paintings are fetched ahead of time, so login never waits on
 the network.
 
+The aim is learning rather than decoration: each painting arrives with its title, artist,
+date and a short description, so a login is a chance to meet a work I would not have
+looked up on my own.
+
 Linux, KDE Plasma. Uses `qdbus6` to apply the wallpaper.
 
 ## How it works
