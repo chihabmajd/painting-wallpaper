@@ -13,7 +13,9 @@ import store
 RETRY_ATTEMPTS = 3
 RETRY_BACKOFF_SECONDS = 5
 
-MET_SEARCH = "https://collectionapi.metmuseum.org/public/collection/v1/search"
+# v1/search was retired on 2026-10-01; v1.1 is paginated (at most 500 IDs per page).
+MET_SEARCH = "https://collectionapi.metmuseum.org/public/collection/v1.1/search"
+MET_PAGE_SIZE = 500
 MET_OBJECT = "https://collectionapi.metmuseum.org/public/collection/v1/objects/{}"
 WIKIDATA_ENTITY = "https://www.wikidata.org/wiki/Special:EntityData/{}.json"
 WIKI_SUMMARY = "https://en.wikipedia.org/api/rest_v1/page/summary/{}"
@@ -37,14 +39,21 @@ def write_image_atomically(path: Path, data: bytes) -> None:
 
 
 def fetch_highlight_ids() -> list[int]:
-    resp = requests.get(
-        MET_SEARCH,
-        params={"q": "painting", "isHighlight": "true", "hasImages": "true"},
-        headers=HEADERS,
-        timeout=15,
-    )
-    resp.raise_for_status()
-    return resp.json().get("objectIDs") or []
+    ids: list[int] = []
+    while True:
+        resp = requests.get(
+            MET_SEARCH,
+            params={"q": "painting", "isHighlight": "true", "hasImages": "true",
+                    "limit": MET_PAGE_SIZE, "offset": len(ids)},
+            headers=HEADERS,
+            timeout=20,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        page = data.get("objectIDs") or []
+        ids.extend(page)
+        if not page or len(ids) >= (data.get("total") or 0):
+            return ids
 
 
 def fetch_object(object_id: int) -> dict:
@@ -81,7 +90,8 @@ def fetch_wikipedia_info(wikidata_url: str) -> tuple[str, str] | None:
 
 
 def compose_fallback_description(obj: dict) -> str:
-    parts = [obj.get(k) for k in ("medium", "culture", "creditLine")]
+    # medium is already shown on its own line in the popup, so it is not repeated here
+    parts = [obj.get(k) for k in ("artistDisplayBio", "culture", "creditLine")]
     parts = [p for p in parts if p]
     return ". ".join(parts) if parts else "No further description available."
 
@@ -109,10 +119,14 @@ def pick_painting(max_attempts: int = 20) -> dict:
         if not image_url or not obj.get("isPublicDomain"):
             continue
 
+        # Prefer the painting's own article; failing that, learn about the artist.
         wiki_info = fetch_wikipedia_info(obj.get("objectWikidata_URL", ""))
+        source = "wikipedia"
+        if not wiki_info:
+            wiki_info = fetch_wikipedia_info(obj.get("artistWikidata_URL", ""))
+            source = "artist"
         if wiki_info:
             description, wikipedia_url = wiki_info
-            source = "wikipedia"
         else:
             description, wikipedia_url, source = compose_fallback_description(obj), "", "met"
 

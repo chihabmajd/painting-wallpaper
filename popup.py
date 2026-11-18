@@ -1,7 +1,11 @@
-"""Frameless popup showing the current painting's info; stays open until closed by hand."""
+"""Frameless popup showing the current painting's info; stays open until closed by hand.
+
+Wayland does not let a client position its own window, so placement (bottom-right
+corner, no taskbar entry) is done by the KWin script in kwin/, matched on the app id.
+"""
 import sys
 
-from PySide6.QtCore import Qt, QPropertyAnimation, QEasingCurve, QPoint
+from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (
     QApplication,
@@ -13,8 +17,9 @@ from PySide6.QtWidgets import (
     QGraphicsDropShadowEffect,
 )
 
-import compose_wallpaper
 import store
+
+APP_ID = "painting-wallpaper"   # Wayland app id; the KWin script matches on it
 
 CARD_WIDTH = 620
 MARGIN = 24
@@ -33,7 +38,6 @@ class PaintingPopup(QWidget):
     def __init__(self, info: dict):
         super().__init__()
         self.info = info
-        self._drag_pos = None
 
         self.setWindowFlags(
             Qt.FramelessWindowHint
@@ -45,15 +49,11 @@ class PaintingPopup(QWidget):
 
         self._build_ui()
 
-        # Qt under-reports wrapped QLabel heights until the widget is shown and
-# polished, so it is measured off-screen after a real layout pass.
-        self.move(-10000, -10000)
-        self.show()
-        QApplication.processEvents()
+        # Qt under-reports wrapped QLabel heights until the widget is polished,
+        # so the size is settled before the window is mapped.
+        self.ensurePolished()
         self.adjustSize()
-
-        self._position_bottom_right()
-        self._slide_in()
+        self.show()
 
     def _build_ui(self):
         outer = QVBoxLayout(self)
@@ -101,7 +101,7 @@ class PaintingPopup(QWidget):
             QPushButton:hover {{ background-color: #e6e0d2; color: {TEXT_PRIMARY}; }}
             """
         )
-        close_btn.clicked.connect(self._fade_out)
+        close_btn.clicked.connect(self.close)
         header_layout.addWidget(close_btn)
         card_layout.addWidget(header)
 
@@ -133,6 +133,15 @@ class PaintingPopup(QWidget):
         body_layout.addSpacing(10)
 
         desc_text = self.info.get("description", "").strip()
+        if desc_text and self.info.get("descriptionSource") == "artist":
+            about = QLabel(f"About {self.info.get('artist', 'the artist')}")
+            about.setStyleSheet(
+                f"color: {TEXT_SECONDARY}; font-size: 11px; font-weight: 600;"
+                " letter-spacing: 1px; text-transform: uppercase;"
+            )
+            body_layout.addWidget(about)
+            body_layout.addSpacing(2)
+
         if desc_text:
             if len(desc_text) > MAX_DESC_CHARS:
                 desc_text = desc_text[:MAX_DESC_CHARS].rsplit(" ", 1)[0] + "…"
@@ -148,7 +157,10 @@ class PaintingPopup(QWidget):
         wikipedia_url = self.info.get("wikipediaURL")
         if wikipedia_url:
             body_layout.addSpacing(12)
-            link = QLabel(f'<a href="{wikipedia_url}">Read on Wikipedia →</a>')
+            label = ("Read about the artist on Wikipedia →"
+                     if self.info.get("descriptionSource") == "artist"
+                     else "Read on Wikipedia →")
+            link = QLabel(f'<a href="{wikipedia_url}">{label}</a>')
             link.setOpenExternalLinks(True)
             link.setStyleSheet(
                 f"""
@@ -162,46 +174,10 @@ class PaintingPopup(QWidget):
         card_layout.addWidget(body)
         outer.addWidget(card)
 
-    def _position_bottom_right(self):
-        # availableGeometry() misses the panel under Wayland/KDE; Plasma is queried
-# directly, as in compose_wallpaper.py.
-        full = QApplication.primaryScreen().geometry()
-        area_x, area_y, area_w, area_h = compose_wallpaper.safe_area(full.width(), full.height())
-        x = area_x + area_w - self.width() - 20
-        y = area_y + area_h - self.height() - 20
-        self._target_pos = QPoint(x, y)
-
-    def _slide_in(self):
-        # Wayland cannot animate whole-window opacity here, so it slides instead.
-        start = QPoint(self._target_pos.x(), self._target_pos.y() + 40)
-        self.move(start)
-        self._anim = QPropertyAnimation(self, b"pos")
-        self._anim.setDuration(260)
-        self._anim.setStartValue(start)
-        self._anim.setEndValue(self._target_pos)
-        self._anim.setEasingCurve(QEasingCurve.OutCubic)
-        self._anim.start()
-
-    def _fade_out(self):
-        end = QPoint(self._target_pos.x(), self._target_pos.y() + 40)
-        self._anim = QPropertyAnimation(self, b"pos")
-        self._anim.setDuration(200)
-        self._anim.setStartValue(self.pos())
-        self._anim.setEndValue(end)
-        self._anim.setEasingCurve(QEasingCurve.InCubic)
-        self._anim.finished.connect(self.close)
-        self._anim.start()
-
     def mousePressEvent(self, event):
-        if event.button() == Qt.LeftButton:
-            self._drag_pos = event.globalPosition().toPoint() - self.pos()
-
-    def mouseMoveEvent(self, event):
-        if self._drag_pos is not None and event.buttons() & Qt.LeftButton:
-            self.move(event.globalPosition().toPoint() - self._drag_pos)
-
-    def mouseReleaseEvent(self, event):
-        self._drag_pos = None
+        # Wayland: dragging has to be handed to the compositor
+        if event.button() == Qt.LeftButton and self.windowHandle():
+            self.windowHandle().startSystemMove()
 
 
 def main():
@@ -211,6 +187,8 @@ def main():
         sys.exit(1)
 
     app = QApplication(sys.argv)
+    app.setDesktopFileName(APP_ID)
+    app.setApplicationDisplayName("Painting of the day")
     popup = PaintingPopup(info)
     sys.exit(app.exec())
 

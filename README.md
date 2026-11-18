@@ -16,7 +16,7 @@ Three entry points, meant to be wired to login and a daily timer:
 
 | Script | When | What it does |
 |---|---|---|
-| `fetch.sh` → `fetch_painting.py` | background after login, and daily | Tops the pool up to three paintings: picks an unseen Met highlight, downloads the image, pulls a description from Wikidata and Wikipedia, and pre-composes it to screen size |
+| `fetch.sh` → `fetch_painting.py` | background after login, and daily | Tops the pool up to three paintings: picks an unseen Met highlight, downloads the image, pulls a description from Wikipedia (the painting's article, else the artist's), and pre-composes it to screen size |
 | `login.sh` → `set_wallpaper.py` | at login | Advances the pool and applies the next painting. Purely local, no network |
 | `popup.sh` → `popup.py` | after login | Shows a card with the title, artist, date and description |
 
@@ -36,7 +36,17 @@ python -m venv .venv && ./.venv/bin/pip install -r requirements.txt
 ./login.sh        # applies the first painting
 ```
 
-The Met Collection API needs no key.
+On Plasma Wayland, install the KWin script that keeps the info card in the bottom-right
+corner and out of the taskbar (Wayland clients cannot place their own windows):
+
+```bash
+cp -r kwin/painting-wallpaper-popup ~/.local/share/kwin/scripts/
+kwriteconfig6 --file kwinrc --group Plugins --key painting-wallpaper-popupEnabled true
+qdbus6 org.kde.KWin /KWin reconfigure
+```
+
+The Met Collection API needs no key. It uses the paginated `v1.1/search` endpoint, since
+`v1/search` was retired on 2026-10-01.
 
 Running it automatically is left to you: no unit files are shipped. What is needed is a
 service running `login.sh` at session start, a second one running `popup.sh`, and a timer

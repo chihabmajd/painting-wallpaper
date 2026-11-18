@@ -1,0 +1,12 @@
+{
+    "KPlugin": {
+        "Id": "painting-wallpaper-popup",
+        "Name": "Painting popup placement",
+        "Description": "Keeps the painting-wallpaper info card in the bottom-right corner, out of the taskbar and window switcher.",
+        "License": "MIT",
+        "EnabledByDefault": true
+    },
+    "KPackageStructure": "KWin/Script",
+    "X-Plasma-API": "javascript",
+    "X-Plasma-MainScript": "code/main.js"
+}
